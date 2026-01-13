@@ -1,0 +1,15 @@
+﻿using Inventory.Domain.Enums;
+
+namespace Inventory.Domain.Entities
+{
+    public class Product : BaseEntity
+    {
+        public string Name { get; set; } = null!;
+        public string Description { get; set; } = null!;
+        public decimal Price { get; set; }
+        public int StockQuantity { get; set; }
+        public ProductStatus Status { get; set; } = ProductStatus.Available;
+        public int CategoryId { get; set; }
+        public Category Category { get; set; } = null!;
+    }
+}
