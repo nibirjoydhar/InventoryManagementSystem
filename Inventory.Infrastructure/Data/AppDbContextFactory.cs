@@ -8,11 +8,8 @@ namespace Inventory.Infrastructure.Data
         public AppDbContext CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-
             var connection = "Host=localhost;Database=InventoryDb;Username=postgres;Password=root";
-
             optionsBuilder.UseNpgsql(connection);
-
             return new AppDbContext(optionsBuilder.Options);
         }
     }

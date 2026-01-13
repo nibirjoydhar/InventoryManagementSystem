@@ -6,6 +6,7 @@ using Inventory.Domain.Interfaces;
 using Inventory.Infrastructure.Authentication;
 using Moq;
 using Xunit;
+using BCrypt.Net;
 
 namespace Inventory.Tests.Services
 {
@@ -26,19 +27,18 @@ namespace Inventory.Tests.Services
         public async Task LoginAsync_ReturnsToken_ForValidUser()
         {
             // Arrange
+            var password = "admin";
             var user = new User
             {
                 Id = 1,
                 Username = "admin",
-                PasswordHash = _authService.GetType()
-                                        .GetMethod("HashPassword", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                                        .Invoke(_authService, new object[] { "admin" })!.ToString()!,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                 Role = UserRole.Admin
             };
 
             _userRepoMock.Setup(x => x.GetByUsernameAsync("admin")).ReturnsAsync(user);
 
-            var dto = new LoginRequestDto { Username = "admin", Password = "admin" };
+            var dto = new LoginRequestDto { Username = "admin", Password = password };
 
             // Act
             var result = await _authService.LoginAsync(dto);
@@ -50,16 +50,15 @@ namespace Inventory.Tests.Services
         }
 
         [Fact]
-        public async Task LoginAsync_ReturnsNull_ForInvalidPassword()
+        public async Task LoginAsync_ThrowsException_ForInvalidPassword()
         {
             // Arrange
+            var password = "admin";
             var user = new User
             {
                 Id = 1,
                 Username = "admin",
-                PasswordHash = _authService.GetType()
-                                        .GetMethod("HashPassword", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                                        .Invoke(_authService, new object[] { "admin" })!.ToString()!,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
                 Role = UserRole.Admin
             };
 
@@ -67,11 +66,9 @@ namespace Inventory.Tests.Services
 
             var dto = new LoginRequestDto { Username = "admin", Password = "wrong" };
 
-            // Act
-            var result = await _authService.LoginAsync(dto);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<Exception>(() => _authService.LoginAsync(dto));
         }
+
     }
 }

@@ -2,8 +2,9 @@
 using Inventory.Application.DTOs.Product;
 using Inventory.Application.Interfaces;
 using Inventory.Domain.Entities;
-using Inventory.Domain.Interfaces;
 using Inventory.Domain.Enums;
+using Inventory.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Inventory.Application.Services
 {
@@ -12,69 +13,93 @@ namespace Inventory.Application.Services
         private readonly IProductRepository _productRepository;
         private readonly IMapper _mapper;
         private readonly ICacheService _cacheService;
+        private readonly ILogger<ProductService> _logger;
 
-        private const string ProductCacheKey = "products";
+        private const string ProductCacheKeyPrefix = "products";
 
         public ProductService(
             IProductRepository productRepository,
             IMapper mapper,
-            ICacheService cacheService)
+            ICacheService cacheService,
+            ILogger<ProductService> logger)
         {
             _productRepository = productRepository;
             _mapper = mapper;
             _cacheService = cacheService;
+            _logger = logger;
         }
 
         // ============================
-        // Get all products (cached)
+        // Get all products with filtering, sorting, pagination, caching
         // ============================
-        public async Task<IReadOnlyList<ProductDto>> GetAllAsync()
+        public async Task<IReadOnlyList<ProductDto>> GetAllAsync(ProductQueryParamsDto? queryParams = null)
         {
-            // 1️⃣ Try cache first
-            var cached = await _cacheService.GetAsync<IReadOnlyList<ProductDto>>(ProductCacheKey);
-            if (cached != null)
-                return cached;
+            queryParams ??= new ProductQueryParamsDto();
 
-            // 2️⃣ Cache miss → load from DB
+            var cacheKey = $"{ProductCacheKeyPrefix}_page{queryParams.Page}_size{queryParams.PageSize}" +
+                           $"_min{queryParams.MinPrice}_max{queryParams.MaxPrice}" +
+                           $"_cat{queryParams.CategoryId}_sort{queryParams.SortBy}_asc{queryParams.Ascending}";
+
+            var cached = await _cacheService.GetAsync<IReadOnlyList<ProductDto>>(cacheKey);
+            if (cached != null)
+            {
+                _logger.LogInformation("Products retrieved from cache: {CacheKey}", cacheKey);
+                return cached;
+            }
+
             var products = await _productRepository.GetAllAsync();
 
-            var productDtos = products.Select(p => new ProductDto
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Description = p.Description,
-                Price = p.Price,
-                StockQuantity = p.StockQuantity,
-                Status = (int)p.Status,
-                CategoryId = p.CategoryId,
-                CategoryName = p.Category?.Name ?? string.Empty
-            }).ToList();
+            // ----------------------------
+            // Filtering
+            // ----------------------------
+            if (queryParams.MinPrice.HasValue)
+                products = products.Where(p => p.Price >= queryParams.MinPrice.Value).ToList();
 
-            // 3️⃣ Store in cache for future requests
-            await _cacheService.SetAsync(ProductCacheKey, productDtos, TimeSpan.FromMinutes(30));
+            if (queryParams.MaxPrice.HasValue)
+                products = products.Where(p => p.Price <= queryParams.MaxPrice.Value).ToList();
+
+            if (queryParams.CategoryId.HasValue)
+                products = products.Where(p => p.CategoryId == queryParams.CategoryId.Value).ToList();
+
+            // ----------------------------
+            // Sorting
+            // ----------------------------
+            products = queryParams.SortBy.ToLower() switch
+            {
+                "name" => queryParams.Ascending ? products.OrderBy(p => p.Name).ToList() : products.OrderByDescending(p => p.Name).ToList(),
+                "price" => queryParams.Ascending ? products.OrderBy(p => p.Price).ToList() : products.OrderByDescending(p => p.Price).ToList(),
+                "id" => queryParams.Ascending ? products.OrderBy(p => p.Id).ToList() : products.OrderByDescending(p => p.Id).ToList(),
+                _ => products
+            };
+
+            // ----------------------------
+            // Pagination
+            // ----------------------------
+            products = products
+                .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                .Take(queryParams.PageSize)
+                .ToList();
+
+            var productDtos = _mapper.Map<List<ProductDto>>(products);
+
+            // ----------------------------
+            // Cache the result
+            // ----------------------------
+            await _cacheService.SetAsync(cacheKey, productDtos, TimeSpan.FromMinutes(30));
+            _logger.LogInformation("Products retrieved from DB and cached: {CacheKey}", cacheKey);
 
             return productDtos;
         }
 
         // ============================
-        // Get product by Id
+        // Get single product by Id
         // ============================
         public async Task<ProductDto?> GetByIdAsync(int id)
         {
             var product = await _productRepository.GetByIdAsync(id);
             if (product == null) return null;
 
-            return new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                Price = product.Price,
-                StockQuantity = product.StockQuantity,
-                Status = (int)product.Status,
-                CategoryId = product.CategoryId,
-                CategoryName = product.Category?.Name ?? string.Empty
-            };
+            return _mapper.Map<ProductDto>(product);
         }
 
         // ============================
@@ -82,23 +107,16 @@ namespace Inventory.Application.Services
         // ============================
         public async Task<ProductDto> CreateAsync(CreateProductDto dto)
         {
-            var product = new Product
-            {
-                Name = dto.Name,
-                Description = dto.Description ?? string.Empty,
-                Price = dto.Price,
-                StockQuantity = dto.StockQuantity,
-                Status = (ProductStatus)dto.Status,
-                CategoryId = dto.CategoryId
-            };
+            var product = _mapper.Map<Product>(dto);
 
             await _productRepository.AddAsync(product);
 
-            // Invalidate product list cache
-            await _cacheService.RemoveAsync(ProductCacheKey);
+            // Invalidate all product caches
+            await _cacheService.RemoveByPrefixAsync(ProductCacheKeyPrefix);
 
-            return await GetByIdAsync(product.Id) ??
-                   _mapper.Map<ProductDto>(product);
+            _logger.LogInformation("Product created: {ProductId}", product.Id);
+
+            return await GetByIdAsync(product.Id) ?? _mapper.Map<ProductDto>(product);
         }
 
         // ============================
@@ -109,17 +127,13 @@ namespace Inventory.Application.Services
             var product = await _productRepository.GetByIdAsync(id);
             if (product == null) return null;
 
-            product.Name = dto.Name;
-            product.Description = dto.Description ?? string.Empty;
-            product.Price = dto.Price;
-            product.StockQuantity = dto.StockQuantity;
-            product.Status = (ProductStatus)dto.Status;
-            product.CategoryId = dto.CategoryId;
-
+            _mapper.Map(dto, product);
             await _productRepository.UpdateAsync(product);
 
-            // Invalidate product list cache
-            await _cacheService.RemoveAsync(ProductCacheKey);
+            // Invalidate all product caches
+            await _cacheService.RemoveByPrefixAsync(ProductCacheKeyPrefix);
+
+            _logger.LogInformation("Product updated: {ProductId}", product.Id);
 
             return await GetByIdAsync(product.Id);
         }
@@ -134,8 +148,10 @@ namespace Inventory.Application.Services
 
             await _productRepository.DeleteAsync(id);
 
-            // Invalidate product list cache
-            await _cacheService.RemoveAsync(ProductCacheKey);
+            // Invalidate all product caches
+            await _cacheService.RemoveByPrefixAsync(ProductCacheKeyPrefix);
+
+            _logger.LogInformation("Product deleted: {ProductId}", id);
 
             return true;
         }

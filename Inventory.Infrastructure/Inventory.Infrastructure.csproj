@@ -7,25 +7,30 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Project references -->
 		<ProjectReference Include="..\Inventory.Application\Inventory.Application.csproj" />
 		<ProjectReference Include="..\Inventory.Domain\Inventory.Domain.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- EF Core (MATCH NPGSQL) -->
+		<!-- EF Core + PostgreSQL -->
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
-
+		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2" />
 		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
 
-		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-
+		<!-- Security -->
+		<PackageReference Include="BCrypt.Net-Next" Version="4.0.2" />
 		<PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.15.0" />
 		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+
+		<!-- Optional logging/cache (remove if unused) -->
+		<!-- <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.1" /> -->
+		<!-- <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.1" /> -->
+		<!-- <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" /> -->
 	</ItemGroup>
 
 	<ItemGroup>

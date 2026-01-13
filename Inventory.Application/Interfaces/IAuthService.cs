@@ -1,10 +1,12 @@
 ﻿using Inventory.Application.DTOs.Auth;
+using System.Threading.Tasks;
+
 
 namespace Inventory.Application.Interfaces
 {
     public interface IAuthService
     {
-        Task<LoginResponseDto?> LoginAsync(LoginRequestDto dto);
-        Task RegisterAsync(string username, string password, string role);
+        Task<AuthResponseDto> LoginAsync(LoginRequestDto dto);
+        Task<AuthResponseDto> RegisterAsync(CreateUserDto dto);
     }
 }

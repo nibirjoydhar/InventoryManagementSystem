@@ -2,6 +2,7 @@
 using Inventory.Domain.Entities;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 using System.Text;
 
@@ -11,9 +12,9 @@ namespace Inventory.Infrastructure.Services
     {
         private readonly string _secretKey;
 
-        public JwtService(string secretKey)
+        public JwtService(string key)
         {
-            _secretKey = secretKey;
+            _secretKey = key ?? throw new ArgumentNullException(nameof(key));
         }
 
         public string GenerateToken(User user)
@@ -23,19 +24,22 @@ namespace Inventory.Infrastructure.Services
 
             var claims = new[]
             {
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, user.Role.ToString())
-            };
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.Role, user.Role.ToString())
+        };
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddHours(3),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
     }
+
 }

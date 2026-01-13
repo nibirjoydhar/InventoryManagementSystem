@@ -1,10 +1,9 @@
 ﻿using Inventory.Application.DTOs.Auth;
 using Inventory.Application.Interfaces;
-using Inventory.Domain.Interfaces;
 using Inventory.Domain.Entities;
 using Inventory.Domain.Enums;
-using System.Security.Cryptography;
-using System.Text;
+using Inventory.Domain.Interfaces;
+using BCrypt.Net;
 
 namespace Inventory.Application.Services
 {
@@ -19,52 +18,57 @@ namespace Inventory.Application.Services
             _jwtService = jwtService;
         }
 
-        public async Task<LoginResponseDto?> LoginAsync(LoginRequestDto dto)
+        // Login method
+        public async Task<AuthResponseDto> LoginAsync(LoginRequestDto dto)
         {
             var user = await _userRepository.GetByUsernameAsync(dto.Username);
             if (user == null)
-                return null;
+                throw new Exception("Invalid username or password");
 
-            // ✅ Hash the incoming password before comparing
-            var hashedPassword = HashPassword(dto.Password);
-
-            if (user.PasswordHash != hashedPassword)
-                return null;
+            // Verify password using BCrypt
+            bool verified = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
+            if (!verified)
+                throw new Exception("Invalid username or password");
 
             var token = _jwtService.GenerateToken(user);
 
-            return new LoginResponseDto
+            return new AuthResponseDto
             {
                 Username = user.Username,
-                Role = user.Role.ToString(),
-                Token = token
+                Role = user.Role.ToString(), // enum to string
+                Token = token,
+                UserId = user.Id
             };
         }
 
-        public async Task RegisterAsync(string username, string password, string role)
+        // Register method
+        public async Task<AuthResponseDto> RegisterAsync(CreateUserDto dto)
         {
-            var existing = await _userRepository.GetByUsernameAsync(username);
+            var existing = await _userRepository.GetByUsernameAsync(dto.Username);
             if (existing != null)
                 throw new Exception("User already exists");
 
+            // Parse role, default to User
+            UserRole role = Enum.TryParse<UserRole>(dto.Role, true, out var parsed) ? parsed : UserRole.User;
+
             var user = new User
             {
-                Username = username,
-                PasswordHash = HashPassword(password), // ✅ Always hash passwords
-                Role = Enum.TryParse<UserRole>(role, true, out var parsed) ? parsed : UserRole.User
+                Username = dto.Username,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                Role = role
             };
 
             await _userRepository.AddAsync(user);
-        }
 
-        // =========================
-        // Helper: SHA256 + Base64
-        // =========================
-        private string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-            return Convert.ToBase64String(bytes);
+            var token = _jwtService.GenerateToken(user);
+
+            return new AuthResponseDto
+            {
+                Username = user.Username,
+                Role = user.Role.ToString(),
+                Token = token,
+                UserId = user.Id
+            };
         }
     }
 }

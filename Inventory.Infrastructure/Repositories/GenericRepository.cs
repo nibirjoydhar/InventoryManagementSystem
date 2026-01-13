@@ -1,6 +1,6 @@
 ﻿using Inventory.Domain.Interfaces;
-using Inventory.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Inventory.Infrastructure.Data;
 
 namespace Inventory.Infrastructure.Repositories
 {

@@ -22,12 +22,18 @@ namespace Inventory.Infrastructure.Repositories
 
         public async Task<IReadOnlyList<Category>> GetAllAsync()
         {
-            return await _context.Categories.ToListAsync();
+            return await _context.Categories
+                                 .Include(c => c.Products) // eager load products if needed
+                                 .AsNoTracking()
+                                 .ToListAsync();
         }
 
         public async Task<Category?> GetByIdAsync(int id)
         {
-            return await _context.Categories.FindAsync(id);
+            return await _context.Categories
+                                 .Include(c => c.Products)
+                                 .AsNoTracking()
+                                 .FirstOrDefaultAsync(c => c.Id == id);
         }
 
         public async Task UpdateAsync(Category category)
@@ -42,6 +48,17 @@ namespace Inventory.Infrastructure.Repositories
             if (category == null) return;
             _context.Categories.Remove(category);
             await _context.SaveChangesAsync();
+        }
+
+        // Optional: Pagination support
+        public async Task<IReadOnlyList<Category>> GetPagedAsync(int page, int pageSize)
+        {
+            return await _context.Categories
+                                 .Include(c => c.Products)
+                                 .AsNoTracking()
+                                 .Skip((page - 1) * pageSize)
+                                 .Take(pageSize)
+                                 .ToListAsync();
         }
     }
 }

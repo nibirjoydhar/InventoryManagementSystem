@@ -2,57 +2,37 @@
 using Inventory.Api.Middleware;
 using Inventory.Domain.Entities;
 using Inventory.Domain.Enums;
+using Inventory.Infrastructure;
 using Inventory.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
 using System.Security.Cryptography;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =======================
-// Services
+// Configuration
+// =======================
+var configuration = builder.Configuration;
+var jwtKey = configuration["Jwt:Key"] ?? "YourSuperSecretKeyHere";
+var jwtIssuer = configuration["Jwt:Issuer"] ?? "InventoryApi";
+var jwtAudience = configuration["Jwt:Audience"] ?? "InventoryApi";
+
+// =======================
+// Services (DI)
 // =======================
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(
-    builder.Configuration.GetConnectionString("DefaultConnection")!
-);
+builder.Services.AddInfrastructure(configuration); // ✅ Infrastructure handles DbContext, JWT, Repositories, Cache
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// Swagger with JWT
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "Inventory.Api",
-        Version = "v1"
-    });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter 'Bearer' [space] and your token.\nExample: Bearer eyJhbGciOi..."
-    });
-
-    c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
-    });
-});
-
+// =======================
 // JWT Authentication
-var key = builder.Configuration["Jwt:Key"] ?? "YourSuperSecretKeyHere";
-var issuer = builder.Configuration["Jwt:Issuer"] ?? "InventoryApi";
-var audience = builder.Configuration["Jwt:Audience"] ?? "InventoryApi";
-
+// =======================
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -66,27 +46,26 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = issuer,
-        ValidAudience = audience,
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(key)
-        )
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
 });
+
+builder.Services.AddLogging();
+builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 
 // =======================
-// Database Initialization + Seed (Fully Async)
+// Database Migration + Seed
 // =======================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-    // Apply pending migrations
     await context.Database.MigrateAsync();
 
-    // Seed categories if empty
     if (!await context.Categories.AnyAsync())
     {
         await context.Categories.AddRangeAsync(
@@ -96,7 +75,6 @@ using (var scope = app.Services.CreateScope())
         );
     }
 
-    // Seed admin user if empty
     if (!await context.Users.AnyAsync())
     {
         await context.Users.AddAsync(new User
@@ -111,11 +89,11 @@ using (var scope = app.Services.CreateScope())
 }
 
 // =======================
-// Middleware & Pipeline
+// Middleware Pipeline
 // =======================
 app.UseMiddleware<ExceptionMiddleware>();
 app.UseSwagger();
-app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Inventory.Api v1"));
+app.UseSwaggerUI();
 
 app.UseAuthentication();
 app.UseAuthorization();

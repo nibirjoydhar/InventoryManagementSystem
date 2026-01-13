@@ -9,14 +9,21 @@ namespace Inventory.Application.Mappings
     {
         public MappingProfiles()
         {
+            // --------------------
             // Product mappings
+            // --------------------
             CreateMap<Product, ProductDto>()
-                .ForMember(dest => dest.CategoryName, opt => opt.Ignore());
+                .ForMember(
+                    dest => dest.CategoryName,
+                    opt => opt.MapFrom(src => src.Category != null ? src.Category.Name : string.Empty)
+                );
 
             CreateMap<CreateProductDto, Product>();
             CreateMap<UpdateProductDto, Product>();
 
+            // --------------------
             // Category mappings
+            // --------------------
             CreateMap<Category, CategoryDto>();
             CreateMap<CreateCategoryDto, Category>();
         }

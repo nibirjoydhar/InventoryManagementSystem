@@ -12,11 +12,6 @@ namespace Inventory.Infrastructure.Services
             _cache = cache;
         }
 
-        //public async Task SetAsync<T>(string key, T value, TimeSpan? expiration = null)
-        //{
-        //    _cache.Set(key, value, expiration ?? TimeSpan.FromMinutes(30));
-        //    await Task.CompletedTask;
-        //}
         public Task SetAsync<T>(string key, T value, TimeSpan? expiration = null)
         {
             _cache.Set(key, value, expiration ?? TimeSpan.FromMinutes(30));
@@ -34,5 +29,36 @@ namespace Inventory.Infrastructure.Services
             _cache.Remove(key);
             await Task.CompletedTask;
         }
+
+        // =============================
+        // Remove all keys with a prefix
+        // =============================
+        public async Task RemoveByPrefixAsync(string prefix)
+        {
+            var cacheItems = typeof(MemoryCache)
+                .GetProperty("EntriesCollection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?
+                .GetValue(_cache) as dynamic;
+
+            if (cacheItems != null)
+            {
+                var keysToRemove = new List<object>();
+                foreach (var item in cacheItems)
+                {
+                    object key = item.GetType().GetProperty("Key")!.GetValue(item, null)!;
+                    if (key.ToString()!.StartsWith(prefix))
+                    {
+                        keysToRemove.Add(key);
+                    }
+                }
+
+                foreach (var key in keysToRemove)
+                {
+                    _cache.Remove(key);
+                }
+            }
+
+            await Task.CompletedTask;
+        }
+
     }
 }

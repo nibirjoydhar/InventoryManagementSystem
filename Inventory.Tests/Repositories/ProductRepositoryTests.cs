@@ -4,41 +4,56 @@ using Inventory.Infrastructure.Data;
 using Inventory.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
+using System;
+using System.Threading.Tasks;
 
-public class ProductRepositoryTests
+namespace Inventory.Tests.Repositories
 {
-    private readonly DbContextOptions<AppDbContext> _options;
-
-    public ProductRepositoryTests()
+    public class ProductRepositoryTests
     {
-        _options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // unique DB for each test
-            .Options;
-    }
+        private readonly DbContextOptions<AppDbContext> _options;
 
-    [Fact]
-    public async Task AddAsync_AddsProduct()
-    {
-        await using var context = new AppDbContext(_options);
-        var repo = new ProductRepository(context);
-
-        var product = new Product
+        public ProductRepositoryTests()
         {
-            Name = "Laptop",
-            Description = "High-end gaming laptop", 
-            Price = 100,
-            StockQuantity = 10,                   
-            Status = ProductStatus.Available,    
-            CategoryId = 1                        
-        };
+            _options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // unique DB for each test
+                .Options;
+        }
 
-        await repo.AddAsync(product);
-        var saved = await context.Products.FirstOrDefaultAsync();
+        [Fact]
+        public async Task AddAsync_AddsProduct()
+        {
+            await using var context = new AppDbContext(_options);
 
-        Assert.NotNull(saved);
-        Assert.Equal("Laptop", saved!.Name);
-        Assert.Equal("High-end gaming laptop", saved.Description);
-        Assert.Equal(100, saved.Price);
-        Assert.Equal(10, saved.StockQuantity);
+            // Arrange: add a category first
+            var category = new Category { Id = 1, Name = "Electronics" };
+            await context.Categories.AddAsync(category);
+            await context.SaveChangesAsync();
+
+            var repo = new ProductRepository(context);
+
+            var product = new Product
+            {
+                Name = "Laptop",
+                Description = "High-end gaming laptop",
+                Price = 100m,           // decimal literal
+                StockQuantity = 10,
+                Status = ProductStatus.Available,
+                CategoryId = category.Id
+            };
+
+            // Act
+            await repo.AddAsync(product);
+            var saved = await context.Products.Include(p => p.Category).FirstOrDefaultAsync();
+
+            // Assert
+            Assert.NotNull(saved);
+            Assert.Equal("Laptop", saved!.Name);
+            Assert.Equal("High-end gaming laptop", saved.Description);
+            Assert.Equal(100m, saved.Price);
+            Assert.Equal(10, saved.StockQuantity);
+            Assert.NotNull(saved.Category);
+            Assert.Equal("Electronics", saved.Category!.Name);
+        }
     }
 }

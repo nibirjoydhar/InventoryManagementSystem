@@ -1,81 +1,62 @@
-﻿using Inventory.Domain.Entities;
+﻿using Inventory.Application.DTOs.Product;
+using Inventory.Domain.Entities;
 using Inventory.Domain.Interfaces;
+using Inventory.Application.Interfaces;
 using Inventory.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Inventory.Infrastructure.Repositories
 {
-    public class ProductRepository : IProductRepository
+    public class ProductRepository : GenericRepository<Product>, IProductRepository
     {
-        private readonly AppDbContext _context;
-
-        public ProductRepository(AppDbContext context)
+        public ProductRepository(AppDbContext context) : base(context)
         {
-            _context = context;
         }
 
         // ============================
-        // Add a new product
+        // Filtered GetAllAsync using DTO
         // ============================
-        public async Task AddAsync(Product product)
+        public async Task<IReadOnlyList<Product>> GetAllAsync(ProductQueryParamsDto queryParams)
         {
-            await _context.Products.AddAsync(product);
-            await _context.SaveChangesAsync();
+            IQueryable<Product> query = _context.Products
+                .Include(p => p.Category)
+                .AsNoTracking();
+
+            if (queryParams.MinPrice.HasValue)
+                query = query.Where(p => p.Price >= queryParams.MinPrice.Value);
+
+            if (queryParams.MaxPrice.HasValue)
+                query = query.Where(p => p.Price <= queryParams.MaxPrice.Value);
+
+            if (queryParams.CategoryId.HasValue)
+                query = query.Where(p => p.CategoryId == queryParams.CategoryId.Value);
+
+            query = queryParams.SortBy.ToLower() switch
+            {
+                "name" => queryParams.Ascending ? query.OrderBy(p => p.Name) : query.OrderByDescending(p => p.Name),
+                "price" => queryParams.Ascending ? query.OrderBy(p => p.Price) : query.OrderByDescending(p => p.Price),
+                _ => queryParams.Ascending ? query.OrderBy(p => p.Id) : query.OrderByDescending(p => p.Id)
+            };
+
+            return await query
+                .Skip((queryParams.Page - 1) * queryParams.PageSize)
+                .Take(queryParams.PageSize)
+                .ToListAsync();
         }
 
         // ============================
-        // Delete product by Id
-        // ============================
-        public async Task DeleteAsync(int id)
-        {
-            var product = await _context.Products.FindAsync(id);
-            if (product == null) return;
-
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
-        }
-
-        // ============================
-        // Get all products (read-only)
-        // ============================
-        public async Task<IReadOnlyList<Product>> GetAllAsync()
-        {
-            return await _context.Products
-                                 .Include(p => p.Category) // eager load category
-                                 .AsNoTracking()           // read-only optimization
-                                 .ToListAsync();
-        }
-
-        // ============================
-        // Get product by Id
-        // ============================
-        public async Task<Product?> GetByIdAsync(int id)
-        {
-            return await _context.Products
-                                 .Include(p => p.Category)
-                                 .AsNoTracking()
-                                 .FirstOrDefaultAsync(p => p.Id == id);
-        }
-
-        // ============================
-        // Update product
-        // ============================
-        public async Task UpdateAsync(Product product)
-        {
-            _context.Products.Update(product);
-            await _context.SaveChangesAsync();
-        }
-
-        // ============================
-        // Get products by category (read-only)
+        // Get products by category
         // ============================
         public async Task<IEnumerable<Product>> GetProductsByCategoryAsync(int categoryId)
         {
             return await _context.Products
-                                 .Where(p => p.CategoryId == categoryId)
-                                 .Include(p => p.Category)
-                                 .AsNoTracking()
-                                 .ToListAsync();
+                .Where(p => p.CategoryId == categoryId)
+                .Include(p => p.Category)
+                .AsNoTracking()
+                .ToListAsync();
         }
     }
 }

@@ -7,12 +7,14 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- Reference to Domain layer -->
 		<ProjectReference Include="..\Inventory.Domain\Inventory.Domain.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- Mapping library -->
 		<PackageReference Include="AutoMapper" Version="16.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.1" />
+		<PackageReference Include="BCrypt.Net-Next" Version="4.0.2" />
 	</ItemGroup>
 
 </Project>
