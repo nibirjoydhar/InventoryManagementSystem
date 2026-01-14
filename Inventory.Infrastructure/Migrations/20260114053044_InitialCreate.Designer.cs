@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Inventory.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260113194330_InitialSeedFixed")]
-    partial class InitialSeedFixed
+    [Migration("20260114053044_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -128,16 +128,6 @@ namespace Inventory.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            CreatedAt = new DateTime(2026, 1, 14, 0, 0, 0, 0, DateTimeKind.Utc),
-                            PasswordHash = "6G94qKPK8LYNjnTllCqm2G3BUM08AzOK7yW30tfjrMc=",
-                            Role = 10,
-                            Username = "admin"
-                        });
                 });
 
             modelBuilder.Entity("Inventory.Domain.Entities.Product", b =>

@@ -18,7 +18,7 @@ namespace Inventory.Infrastructure.Migrations
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Name = table.Column<string>(type: "text", nullable: false),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
@@ -33,7 +33,7 @@ namespace Inventory.Infrastructure.Migrations
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Username = table.Column<string>(type: "text", nullable: false),
+                    Username = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
                     Role = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -50,8 +50,8 @@ namespace Inventory.Infrastructure.Migrations
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Description = table.Column<string>(type: "text", nullable: false),
+                    Name = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
+                    Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
                     Price = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     StockQuantity = table.Column<int>(type: "integer", nullable: false),
                     Status = table.Column<int>(type: "integer", nullable: false),
@@ -69,6 +69,12 @@ namespace Inventory.Infrastructure.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Categories_Name",
+                table: "Categories",
+                column: "Name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Products_CategoryId",

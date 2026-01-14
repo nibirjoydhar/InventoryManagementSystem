@@ -18,37 +18,34 @@ namespace Inventory.Application.Services
             _jwtService = jwtService;
         }
 
-        // Login method
         public async Task<AuthResponseDto> LoginAsync(LoginRequestDto dto)
         {
             var user = await _userRepository.GetByUsernameAsync(dto.Username);
             if (user == null)
-                throw new Exception("Invalid username or password");
+                throw new Exception("Invalid credentials"); // Must throw or handle in a way that returns AuthResponseDto
 
-            // Verify password using BCrypt
             bool verified = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
             if (!verified)
-                throw new Exception("Invalid username or password");
+                throw new Exception("Invalid credentials");
 
             var token = _jwtService.GenerateToken(user);
 
             return new AuthResponseDto
             {
                 Username = user.Username,
-                Role = user.Role.ToString(), // enum to string
+                Role = user.Role.ToString(),
                 Token = token,
                 UserId = user.Id
             };
         }
 
-        // Register method
+
         public async Task<AuthResponseDto> RegisterAsync(CreateUserDto dto)
         {
             var existing = await _userRepository.GetByUsernameAsync(dto.Username);
             if (existing != null)
                 throw new Exception("User already exists");
 
-            // Parse role, default to User
             UserRole role = Enum.TryParse<UserRole>(dto.Role, true, out var parsed) ? parsed : UserRole.User;
 
             var user = new User

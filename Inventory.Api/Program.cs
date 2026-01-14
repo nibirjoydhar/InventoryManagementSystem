@@ -1,13 +1,11 @@
 ﻿using Inventory.Api.Extensions;
 using Inventory.Api.Middleware;
-using Inventory.Domain.Entities;
-using Inventory.Domain.Enums;
 using Inventory.Infrastructure;
 using Inventory.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Security.Cryptography;
+using Microsoft.OpenApi;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,7 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Configuration
 // =======================
 var configuration = builder.Configuration;
-var jwtKey = configuration["Jwt:Key"] ?? "YourSuperSecretKeyHere";
+var jwtKey = configuration["Jwt:Key"] ?? "YourSuperSecretKeyHereMustBeAtLeast32CharsLong!";
 var jwtIssuer = configuration["Jwt:Issuer"] ?? "InventoryApi";
 var jwtAudience = configuration["Jwt:Audience"] ?? "InventoryApi";
 
@@ -24,11 +22,37 @@ var jwtAudience = configuration["Jwt:Audience"] ?? "InventoryApi";
 // Services (DI)
 // =======================
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(configuration); // ✅ Infrastructure handles DbContext, JWT, Repositories, Cache
+builder.Services.AddInfrastructure(configuration);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+
+// Swagger with JWT support
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Inventory Management API",
+        Version = "v1"
+    });
+
+    const string schemeName = "bearer";
+
+    options.AddSecurityDefinition(schemeName, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Name = "Authorization",
+        Description = "Paste **only your JWT token** here."
+    });
+
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference(schemeName, document)] = []
+    });
+});
 
 // =======================
 // JWT Authentication
@@ -43,7 +67,7 @@ builder.Services.AddAuthentication(options =>
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
-        ValidateAudience = true,
+        ValidateAudience = false,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtIssuer,
@@ -58,40 +82,19 @@ builder.Services.AddMemoryCache();
 var app = builder.Build();
 
 // =======================
-// Database Migration + Seed
+// Automatic migrations (good for dev, consider removing in production)
 // =======================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    await context.Database.MigrateAsync();
-
-    if (!await context.Categories.AnyAsync())
-    {
-        await context.Categories.AddRangeAsync(
-            new Category { Name = "Electronics" },
-            new Category { Name = "Books" },
-            new Category { Name = "Clothing" }
-        );
-    }
-
-    if (!await context.Users.AnyAsync())
-    {
-        await context.Users.AddAsync(new User
-        {
-            Username = "admin",
-            PasswordHash = HashPassword("Admin@123"),
-            Role = UserRole.Admin
-        });
-    }
-
-    await context.SaveChangesAsync();
+    context.Database.Migrate();
 }
 
 // =======================
-// Middleware Pipeline
+// Middleware pipeline
 // =======================
 app.UseMiddleware<ExceptionMiddleware>();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -101,13 +104,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-// =======================
-// Helper: Hash Password
-// =======================
-static string HashPassword(string password)
-{
-    using var sha256 = SHA256.Create();
-    var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-    return Convert.ToBase64String(bytes);
-}

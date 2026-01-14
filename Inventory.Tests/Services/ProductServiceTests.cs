@@ -1,6 +1,4 @@
-﻿// File: Inventory.Tests\Services\ProductServiceTests.cs
-
-using AutoMapper;
+﻿using AutoMapper;
 using Inventory.Application.DTOs.Product;
 using Inventory.Application.Interfaces;
 using Inventory.Application.Services;
@@ -33,7 +31,6 @@ namespace Inventory.Tests.Services
             _productRepoMock = new Mock<IProductRepository>();
             _cacheMock = new Mock<ICacheService>();
             _loggerMock = new Mock<ILogger<ProductService>>();
-
             _service = new ProductService(
                 _productRepoMock.Object,
                 _mapper,
@@ -45,6 +42,8 @@ namespace Inventory.Tests.Services
         public async Task GetAllAsync_ReturnsAllProducts()
         {
             // Arrange
+            var queryParams = new ProductQueryParamsDto { Page = 1, PageSize = 10 };
+
             var products = new List<Product>
             {
                 new Product
@@ -60,7 +59,14 @@ namespace Inventory.Tests.Services
                 }
             };
 
-            _productRepoMock.Setup(x => x.GetAllAsync()).ReturnsAsync(products);
+            var expectedTotal = 1; // Total matching records
+            var expectedItems = products.AsReadOnly();
+
+            // Mock repository to return tuple
+            _productRepoMock.Setup(x => x.GetAllWithTotalAsync(It.IsAny<ProductQueryParamsDto>()))
+                            .ReturnsAsync((expectedTotal, expectedItems));
+
+            // Mock mapper
             _mapperMock.Setup(m => m.Map<List<ProductDto>>(It.IsAny<IEnumerable<Product>>()))
                        .Returns((IEnumerable<Product> src) => src.Select(p => new ProductDto
                        {
@@ -69,13 +75,13 @@ namespace Inventory.Tests.Services
                        }).ToList());
 
             // Act
-            var result = await _service.GetAllAsync()!;
+            var (total, items) = await _service.GetAllAsync(queryParams);
 
             // Assert
-            var listResult = result.ToList();
-            listResult.Should().HaveCount(1);
-            listResult.First().Name.Should().Be("Test");
-            listResult.First().CategoryName.Should().Be("Electronics");
+            total.Should().Be(expectedTotal);
+            items.Should().HaveCount(1);
+            items.First().Name.Should().Be("Test");
+            items.First().CategoryName.Should().Be("Electronics");
         }
 
         [Fact]
@@ -92,11 +98,18 @@ namespace Inventory.Tests.Services
                 Status = (int)ProductStatus.Available
             };
 
-            var product = new Product { Id = 1, Name = dto.Name, CategoryId = dto.CategoryId };
+            var product = new Product
+            {
+                Id = 1,
+                Name = dto.Name,
+                CategoryId = dto.CategoryId,
+                Category = new Category { Name = "Electronics" } // Simulate loaded category
+            };
 
             _mapperMock.Setup(m => m.Map<Product>(It.IsAny<CreateProductDto>())).Returns(product);
             _productRepoMock.Setup(x => x.AddAsync(It.IsAny<Product>())).Returns(Task.CompletedTask);
             _productRepoMock.Setup(x => x.GetByIdAsync(product.Id)).ReturnsAsync(product);
+
             _mapperMock.Setup(m => m.Map<ProductDto>(It.IsAny<Product>()))
                        .Returns((Product p) => new ProductDto
                        {
@@ -105,11 +118,12 @@ namespace Inventory.Tests.Services
                        });
 
             // Act
-            var result = await _service.CreateAsync(dto)!;
+            var result = await _service.CreateAsync(dto);
 
             // Assert
+            result.Should().NotBeNull();
             result.Name.Should().Be(dto.Name);
-            result.CategoryName.Should().Be("Unknown"); // Category is null in product object
+            result.CategoryName.Should().Be("Electronics"); // Now reflects loaded category
         }
 
         [Fact]
@@ -123,6 +137,28 @@ namespace Inventory.Tests.Services
 
             // Assert
             result.Should().BeNull();
+        }
+
+        // Optional: Add a test for cache hit scenario if you want full coverage
+        [Fact]
+        public async Task GetAllAsync_ReturnsFromCache_WhenAvailable()
+        {
+            // Arrange
+            var queryParams = new ProductQueryParamsDto { Page = 1, PageSize = 10 };
+            var cachedItems = new List<ProductDto> { new ProductDto { Name = "Cached" } }.AsReadOnly();
+            var cachedTuple = (Total: 5, Items: cachedItems);
+
+            _cacheMock.Setup(c => c.GetAsync<(int Total, IReadOnlyList<ProductDto> Items)>(It.IsAny<string>()))
+                      .ReturnsAsync(cachedTuple);
+
+            // Act
+            var (total, items) = await _service.GetAllAsync(queryParams);
+
+            // Assert
+            total.Should().Be(5);
+            items.Should().HaveCount(1);
+            items.First().Name.Should().Be("Cached");
+            _productRepoMock.Verify(r => r.GetAllWithTotalAsync(It.IsAny<ProductQueryParamsDto>()), Times.Never);
         }
     }
 }

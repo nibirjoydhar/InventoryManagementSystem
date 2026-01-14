@@ -19,12 +19,13 @@ namespace Inventory.Infrastructure.Repositories
         // ============================
         // Filtered GetAllAsync using DTO
         // ============================
-        public async Task<IReadOnlyList<Product>> GetAllAsync(ProductQueryParamsDto queryParams)
+        public async Task<(int Total, IReadOnlyList<Product> Items)> GetAllWithTotalAsync(ProductQueryParamsDto queryParams)
         {
-            IQueryable<Product> query = _context.Products
-                .Include(p => p.Category)
+            var query = _context.Products
+                .Include(p => p.Category)           // Important for CategoryName
                 .AsNoTracking();
 
+            // Apply filters
             if (queryParams.MinPrice.HasValue)
                 query = query.Where(p => p.Price >= queryParams.MinPrice.Value);
 
@@ -34,17 +35,32 @@ namespace Inventory.Infrastructure.Repositories
             if (queryParams.CategoryId.HasValue)
                 query = query.Where(p => p.CategoryId == queryParams.CategoryId.Value);
 
-            query = queryParams.SortBy.ToLower() switch
+            // Sorting (handle null/default)
+            var sortBy = string.IsNullOrEmpty(queryParams.SortBy) ? "id" : queryParams.SortBy.ToLower();
+
+            query = sortBy switch
             {
-                "name" => queryParams.Ascending ? query.OrderBy(p => p.Name) : query.OrderByDescending(p => p.Name),
-                "price" => queryParams.Ascending ? query.OrderBy(p => p.Price) : query.OrderByDescending(p => p.Price),
-                _ => queryParams.Ascending ? query.OrderBy(p => p.Id) : query.OrderByDescending(p => p.Id)
+                "name" => queryParams.Ascending
+                    ? query.OrderBy(p => p.Name)
+                    : query.OrderByDescending(p => p.Name),
+                "price" => queryParams.Ascending
+                    ? query.OrderBy(p => p.Price)
+                    : query.OrderByDescending(p => p.Price),
+                _ => queryParams.Ascending
+                    ? query.OrderBy(p => p.Id)
+                    : query.OrderByDescending(p => p.Id)
             };
 
-            return await query
+            // Get total count (before pagination - very efficient)
+            var total = await query.CountAsync();
+
+            // Get paginated items
+            var items = await query
                 .Skip((queryParams.Page - 1) * queryParams.PageSize)
                 .Take(queryParams.PageSize)
                 .ToListAsync();
+
+            return (total, items);
         }
 
         // ============================

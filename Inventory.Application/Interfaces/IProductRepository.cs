@@ -8,7 +8,10 @@ namespace Inventory.Application.Interfaces
 {
     public interface IProductRepository : IRepository<Product>
     {
-        Task<IReadOnlyList<Product>> GetAllAsync(ProductQueryParamsDto queryParams);
+        //Task<IReadOnlyList<Product>> GetAllAsync(ProductQueryParamsDto queryParams);
+
+        Task<(int Total, IReadOnlyList<Product> Items)> GetAllWithTotalAsync(ProductQueryParamsDto queryParams);
         Task<IEnumerable<Product>> GetProductsByCategoryAsync(int categoryId);
+        
     }
 }

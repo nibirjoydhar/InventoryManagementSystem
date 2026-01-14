@@ -32,6 +32,8 @@ namespace Inventory.Infrastructure.Services
             {
                 Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddHours(3),
+                Issuer = "InventoryApi",
+                Audience = "InventoryApi",
                 SigningCredentials = new SigningCredentials(
                     new SymmetricSecurityKey(key),
                     SecurityAlgorithms.HmacSha256Signature)
