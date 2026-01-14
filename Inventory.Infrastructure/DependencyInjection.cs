@@ -37,7 +37,7 @@ namespace Inventory.Infrastructure
             // Cache
             // =====================
             services.AddMemoryCache();
-            services.AddScoped<ICacheService, MemoryCacheService>();
+            services.AddSingleton<ICacheService, MemoryCacheService>();
 
             return services;
         }

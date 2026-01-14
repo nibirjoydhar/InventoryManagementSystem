@@ -3,9 +3,13 @@ using Inventory.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Inventory.Api.Controllers
 {
+    /// <summary>
+    /// Controller for managing products
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class ProductController : ControllerBase
@@ -14,7 +18,6 @@ namespace Inventory.Api.Controllers
         private readonly ILogger<ProductController> _logger;
         private readonly ICacheService _cacheService;
 
-        // Use same prefix as service for proper invalidation
         private const string ProductCacheKeyPrefix = "products";
 
         public ProductController(
@@ -27,7 +30,15 @@ namespace Inventory.Api.Controllers
             _cacheService = cacheService;
         }
 
+        /// <summary>
+        /// Get all products with optional filters and pagination
+        /// </summary>
         [HttpGet]
+        [SwaggerOperation(
+            Summary = "Get all products",
+            Description = "Returns paginated products with optional price and category filters"
+        )]
+        [ProducesResponseType(200)]
         public async Task<IActionResult> GetAll(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10,
@@ -42,7 +53,6 @@ namespace Inventory.Api.Controllers
                 MinPrice = minPrice.HasValue ? (decimal?)minPrice.Value : null,
                 MaxPrice = maxPrice.HasValue ? (decimal?)maxPrice.Value : null,
                 CategoryId = categoryId
-                // You can add: SortBy = "name", Ascending = true as defaults if needed
             };
 
             var (total, data) = await _productService.GetAllAsync(queryParams);
@@ -56,7 +66,13 @@ namespace Inventory.Api.Controllers
             });
         }
 
+        /// <summary>
+        /// Get product by ID
+        /// </summary>
         [HttpGet("{id}")]
+        [SwaggerOperation(Summary = "Get product by ID")]
+        [ProducesResponseType(typeof(ProductDto), 200)]
+        [ProducesResponseType(404)]
         public async Task<IActionResult> GetById(int id)
         {
             var product = await _productService.GetByIdAsync(id);
@@ -64,8 +80,15 @@ namespace Inventory.Api.Controllers
             return Ok(product);
         }
 
+        /// <summary>
+        /// Create a new product (Admin only)
+        /// </summary>
         [HttpPost]
         [Authorize(Roles = "Admin")]
+        [SwaggerOperation(Summary = "Create a product")]
+        [ProducesResponseType(typeof(ProductDto), 201)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(401)]
         public async Task<IActionResult> Create([FromBody] CreateProductDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -79,8 +102,16 @@ namespace Inventory.Api.Controllers
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
 
+        /// <summary>
+        /// Update a product (Admin only)
+        /// </summary>
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
+        [SwaggerOperation(Summary = "Update a product")]
+        [ProducesResponseType(typeof(ProductDto), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(401)]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateProductDto dto)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -95,8 +126,15 @@ namespace Inventory.Api.Controllers
             return Ok(updated);
         }
 
+        /// <summary>
+        /// Delete a product (Admin only)
+        /// </summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
+        [SwaggerOperation(Summary = "Delete a product")]
+        [ProducesResponseType(204)]
+        [ProducesResponseType(404)]
+        [ProducesResponseType(401)]
         public async Task<IActionResult> Delete(int id)
         {
             var result = await _productService.DeleteAsync(id);

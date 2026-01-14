@@ -2,9 +2,13 @@
 using Inventory.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Inventory.Api.Controllers
 {
+    /// <summary>
+    /// Handles user authentication(login_and_registration)
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class AuthController : ControllerBase
@@ -18,7 +22,17 @@ namespace Inventory.Api.Controllers
             _logger = logger;
         }
 
+        /// <summary>
+        /// Login a user with username and password
+        /// </summary>
         [HttpPost("login")]
+        [SwaggerOperation(
+            Summary = "Login a user",
+            Description = "Authenticates a user and returns a JWT token if credentials are valid"
+        )]
+        [ProducesResponseType(typeof(LoginResponseDto), 200)]
+        [ProducesResponseType(400)]
+        [ProducesResponseType(401)]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
         {
             if (!ModelState.IsValid)
@@ -34,7 +48,16 @@ namespace Inventory.Api.Controllers
             return Ok(result);
         }
 
+        /// <summary>
+        /// Register a new user
+        /// </summary>
         [HttpPost("register")]
+        [SwaggerOperation(
+            Summary = "Register a new user",
+            Description = "Creates a new user account"
+        )]
+        [ProducesResponseType(200)]
+        [ProducesResponseType(400)]
         public async Task<IActionResult> Register([FromBody] CreateUserDto dto)
         {
             if (!ModelState.IsValid)

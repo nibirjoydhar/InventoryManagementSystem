@@ -2,11 +2,15 @@
 using Inventory.Api.Middleware;
 using Inventory.Infrastructure;
 using Inventory.Infrastructure.Data;
+using Inventory.Infrastructure.Data.Seed;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Swashbuckle.AspNetCore.Annotations;
 using Microsoft.OpenApi;
+using System.Reflection;
 using System.Text;
+using System.IO;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +40,19 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1"
     });
 
+    // Include XML comments from API project
+    var xmlApiFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlApiPath = Path.Combine(AppContext.BaseDirectory, xmlApiFile);
+    options.IncludeXmlComments(xmlApiPath, includeControllerXmlComments: true);
+
+    // Include XML comments from Application project
+    var xmlAppFile = "Inventory.Application.xml"; // exact file name
+    var xmlAppPath = Path.Combine(AppContext.BaseDirectory, xmlAppFile);
+    if (File.Exists(xmlAppPath))
+    {
+        options.IncludeXmlComments(xmlAppPath);
+    }
+
     const string schemeName = "bearer";
 
     options.AddSecurityDefinition(schemeName, new OpenApiSecurityScheme
@@ -52,7 +69,11 @@ builder.Services.AddSwaggerGen(options =>
     {
         [new OpenApiSecuritySchemeReference(schemeName, document)] = []
     });
+
+    // Optional: Enable annotations from XML
+    options.EnableAnnotations();
 });
+
 
 // =======================
 // JWT Authentication
@@ -81,6 +102,13 @@ builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 
+// Seed Product & Category
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    ProductCategorySeeder.Seed(dbContext);
+}
+
 // =======================
 // Automatic migrations (good for dev, consider removing in production)
 // =======================
@@ -96,7 +124,13 @@ using (var scope = app.Services.CreateScope())
 app.UseMiddleware<ExceptionMiddleware>();
 
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Inventory Management API v1");
+    c.DefaultModelsExpandDepth(-1); // hides object schemas by default
+    c.DisplayRequestDuration();      // shows request duration
+});
+
 
 app.UseAuthentication();
 app.UseAuthorization();
